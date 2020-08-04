@@ -9,8 +9,8 @@ pub use render_system::RenderSystem;
 //pull in components
 mod position_component;
 pub use position_component::PositionComponent;
-mod visible_component;
-pub use visible_component::VisibleComponent;
+mod gfx_components;
+pub use gfx_components::VisibleComponent;
 
 
 pub fn register_components(world: &mut World) {
@@ -36,13 +36,19 @@ pub fn create_test_entities(world: &mut World) {
     world
     .create_entity()
     .with(PositionComponent { map_pos: Point::new(100.0, 100.0) })
-    .with(VisibleComponent { sprite_sheet_name: "test".to_string(), sprite_location: (1,1) })
+    .with(VisibleComponent { 
+               sprite_sheet_name: "assets/sara-atlas.png".to_string(), 
+               sprite_location: (5,1) 
+    })
     .build();
 
     //another character
     world
     .create_entity()
     .with(PositionComponent { map_pos: Point::new(500.0, 500.0) })
-    .with(VisibleComponent { sprite_sheet_name: "test".to_string(), sprite_location: (1,1) })
+    .with(VisibleComponent { 
+               sprite_sheet_name: "assets/sara-atlas.png".to_string(), 
+               sprite_location: (2,1) 
+    })
     .build();
 }

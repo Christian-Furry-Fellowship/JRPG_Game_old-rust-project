@@ -1,7 +1,7 @@
 use specs::{WriteExpect, ReadStorage, System};
 
 use super::position_component::PositionComponent;
-use super::visible_component::VisibleComponent;
+use super::gfx_components::VisibleComponent;
 
 use crate::assets::AssetDatabase;
 

@@ -6,7 +6,7 @@ struct SpriteSize { pub width: u16, pub height: u16}
 
 //An array of sprites packed into a single image, also called an Atlas.
 pub struct SpriteSheet {
-    atlas: Image,
+    //atlas: Image,
     pub batch: Batch,
     //rows: u16,
     //columns: u16,
@@ -23,8 +23,8 @@ impl SpriteSheet {
         };
 
         SpriteSheet {
-            atlas: image.clone(),
-            batch: Batch::new(image.clone()),
+            //atlas: image.clone(),
+            batch: Batch::new(image),
             sprite_size,
         }
     }

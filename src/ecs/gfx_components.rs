@@ -1,6 +1,5 @@
 use specs::{Component, VecStorage};
 
-use crate::assets::SpriteSheet;
 
 #[derive(Component)]
 #[storage(VecStorage)]

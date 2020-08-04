@@ -15,7 +15,8 @@ mod ecs;
 
 struct MyGame {
     world: World,
-    render_dispatcher: Dispatcher<'static, 'static>, 
+    render_dispatcher: Dispatcher<'static, 'static>,
+    data_dispatcher: Dispatcher<'static, 'static>,
 }
 
 impl Game for MyGame {
@@ -38,14 +39,11 @@ impl Game for MyGame {
 
               MyGame { 
                   world,
-                  render_dispatcher: ecs::build_render_dispatcher()
+                  render_dispatcher: ecs::build_render_dispatcher(),
+                  data_dispatcher: ecs::build_data_dispatcher(),
               }
          })
 
-        //insert data into the world
-        //let bg_img = Image::from_image(_window.gpu(),
-        //                   DynamicImage::new_rgba8(_window.width(), _window.height()))
-        //             .expect("Error creating batch image.");
     }
 
     fn draw(&mut self, frame: &mut Frame, _timer: &Timer) {
