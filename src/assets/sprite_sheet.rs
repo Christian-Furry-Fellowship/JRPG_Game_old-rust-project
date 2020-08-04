@@ -1,4 +1,4 @@
-use coffee::graphics::{Point, Rectangle, Image, Sprite};
+use coffee::graphics::{Point, Rectangle, Image, Batch, Sprite};
 
 //size of a single sprite in the Sprite Sheet
 struct SpriteSize { pub width: u16, pub height: u16}
@@ -7,6 +7,7 @@ struct SpriteSize { pub width: u16, pub height: u16}
 //An array of sprites packed into a single image, also called an Atlas.
 pub struct SpriteSheet {
     atlas: Image,
+    pub batch: Batch,
     //rows: u16,
     //columns: u16,
     sprite_size: SpriteSize,
@@ -22,7 +23,8 @@ impl SpriteSheet {
         };
 
         SpriteSheet {
-            atlas: image,
+            atlas: image.clone(),
+            batch: Batch::new(image.clone()),
             sprite_size,
         }
     }
@@ -36,7 +38,7 @@ impl SpriteSheet {
     //          Sprite object depicting a single sprite in the atlas
 
     pub fn get_sprite(&self, position: Point, mut row: u16, mut column: u16)
-           -> (Image, Sprite) {
+           -> Sprite {
 
         //adjust row/column for calculating sprite position in atlas  
         row = row - 1;
@@ -50,14 +52,18 @@ impl SpriteSheet {
         let sprite_height = self.sprite_size.height;
 
         //return full atlas image and requested sprite's location in the atlas.
-        (self.atlas.clone(), //note coffee docs says cloning Image is very cheap
-         Sprite { 
+        Sprite { 
             source: Rectangle{
                 x: column * sprite_width, y: row * sprite_height, 
                 width: sprite_width, height: sprite_height,
             },
             position: position, 
             scale: (1.0,1.0) //assume normal scale, lets other code change it as needed 
-        })
+        }
     }
+
+    pub fn add_to_batch(&mut self, position: Point, row: u16, column: u16) {
+        self.batch.add( self.get_sprite( position, row, column ) );
+    }
+
 }
