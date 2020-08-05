@@ -3,7 +3,7 @@ use specs::{WriteExpect, ReadStorage, System};
 use super::position_component::PositionComponent;
 use super::gfx_components::VisibleComponent;
 
-use crate::assets::AssetDatabase;
+use crate::assets::{AssetDatabase, AssetContainer};
 
 //the render system draws stuff onto the next frame before the core application 
 //  applies it to the screen
@@ -20,11 +20,16 @@ impl<'a> System<'a> for RenderSystem {
 
         for (position, visible) in (&position, &visible).join() {
 
-            let spritesheet = &mut asset_database.sprite_sheet;
-            let row    = visible.sprite_location.0;
-            let column = visible.sprite_location.1;
+
+            match asset_database.get_asset(&visible.sprite_sheet_name) {
+                AssetContainer::Spritesheet(atlas) => {
+                    let row    = visible.sprite_location.0;
+                    let column = visible.sprite_location.1;
             
-            spritesheet.add_to_batch(position.map_pos, row, column); 
+                    atlas.add_to_batch(position.map_pos, row, column); 
+                }
+                _ => continue
+            };
         }
     }
 }

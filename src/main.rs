@@ -9,7 +9,7 @@ use coffee::{
 use specs::{World, WorldExt, Dispatcher};
 
 mod assets;
-use assets::{AssetDatabase, SpriteSheet};
+use assets::{AssetDatabase, AssetContainer, SpriteSheet};
 
 mod ecs;
 
@@ -28,14 +28,18 @@ impl Game for MyGame {
         Image::load("assets/sara-atlas.png")
          .map(|player_atlas| {
               
-              let sprite_sheet = SpriteSheet::new(player_atlas, 5, 5);
+              let mut asset_db = AssetDatabase::new();
+              asset_db.add_asset(
+                   "assets/sara-atlas.png".to_string(),
+                   AssetContainer::Spritesheet( SpriteSheet::new(player_atlas, 5, 5) )
+              );
 
               let mut world = World::new();
               ecs::register_components(&mut world);
               ecs::create_test_entities(&mut world);
 
               //insert data into the world
-              world.insert(AssetDatabase{sprite_sheet}); 
+              world.insert(asset_db); 
 
               MyGame { 
                   world,
@@ -51,12 +55,26 @@ impl Game for MyGame {
         frame.clear(Color::BLACK);
 
         let mut world = & self.world;
-        
         self.render_dispatcher.dispatch(&mut world);
 
-        let mut asset_database = world.write_resource::<AssetDatabase>();        
-        asset_database.sprite_sheet.batch.draw( &mut frame.as_target() );
-        asset_database.sprite_sheet.batch.clear();
+
+        let mut asset_database = world.write_resource::<AssetDatabase>();
+
+
+        //TODO this isn't good. we should only iterate over assets that need to be drawn
+        for (_, asset_container) in asset_database.get_asset_iter_mut() {
+        
+            match asset_container {
+
+                AssetContainer::Spritesheet(spritesheet) => {
+                    spritesheet.batch.draw( &mut frame.as_target() );
+                    spritesheet.batch.clear();
+                },
+
+                _ => return
+            };
+
+        }
     }
 }
 
