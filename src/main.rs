@@ -28,10 +28,28 @@ impl Game for MyGame {
         Image::load("assets/sara-atlas.png")
          .map(|player_atlas| {
               
+              let mut ss = SpriteSheet::new(player_atlas, 5, 5);
+              ss.add_animation( "idle".to_string(),
+                  vec![(1,1), (2,1), (4,1), (3,1)]
+              );
+              ss.add_animation( "walk left".to_string(),
+                  vec![(1,1), (1,2), (1,3), (1,4), (1,5)]
+              );
+              ss.add_animation( "walk down".to_string(),
+                  vec![(2,1), (2,2), (2,3), (2,4), (2,5)]
+              );
+              ss.add_animation( "walk up".to_string(),
+                  vec![(3,1), (3,2), (3,3), (3,4), (3,5)]
+              );              
+              ss.add_animation( "walk right".to_string(),
+                  vec![(4,1), (4,2), (4,3), (4,4), (4,5)]
+              );
+
+
               let mut asset_db = AssetDatabase::new();
               asset_db.add_asset(
                    "assets/sara-atlas.png".to_string(),
-                   AssetContainer::Spritesheet( SpriteSheet::new(player_atlas, 5, 5) )
+                   AssetContainer::Spritesheet( ss )
               );
 
               let mut world = World::new();

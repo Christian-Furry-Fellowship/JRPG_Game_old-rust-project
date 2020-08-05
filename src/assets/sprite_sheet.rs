@@ -1,16 +1,25 @@
+use std::collections::HashMap;
+
 use coffee::graphics::{Point, Rectangle, Image, Batch, Sprite};
 
 //size of a single sprite in the Sprite Sheet
 struct SpriteSize { pub width: u16, pub height: u16}
+
+//location of a single sprite
+pub type SpritePos = ( u16, u16 );
+
+//Sprite locations ordered in a way to create an animation
+pub type SpriteAnimation = Vec<SpritePos>;
 
 
 //An array of sprites packed into a single image, also called an Atlas.
 pub struct SpriteSheet {
     //atlas: Image,
     pub batch: Batch,
-    //rows: u16,
-    //columns: u16,
+    pub rows: u16,
+    pub columns: u16,
     sprite_size: SpriteSize,
+    animation_sets: HashMap<String, SpriteAnimation>,
 }
 
 
@@ -25,7 +34,10 @@ impl SpriteSheet {
         SpriteSheet {
             //atlas: image.clone(),
             batch: Batch::new(image),
+            rows,
+            columns,
             sprite_size,
+            animation_sets: HashMap::new(),
         }
     }
 
@@ -62,8 +74,21 @@ impl SpriteSheet {
         }
     }
 
+    //add a sprite quad to the batch for later drawing
     pub fn add_to_batch(&mut self, position: Point, row: u16, column: u16) {
         self.batch.add( self.get_sprite( position, row, column ) );
     }
 
+    //adds a new sprite sequence using positions that represents an animation
+    pub fn add_animation(&mut self, name: String, set: SpriteAnimation) {
+        self.animation_sets.insert(name, set);
+    }
+
+    //acquires animation pos sequence or empty vector
+    pub fn get_animation(&mut self, name: &String) -> SpriteAnimation {
+        match self.animation_sets.get_mut(name) {
+            Option::Some(sprite_animation) => sprite_animation.to_vec(),
+            Option::None => vec![]
+        }
+    }
 }
