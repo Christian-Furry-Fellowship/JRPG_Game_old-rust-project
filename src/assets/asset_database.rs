@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 use std::collections::hash_map::IterMut;
 
+use config::Config;
+
 use super::SpriteSheet;
 
 pub enum AssetContainer {
     DoesNotExist, //does not exist
-    Spritesheet(SpriteSheet)
+    Spritesheet(SpriteSheet),
+    ConfigStore(Config),
 }
 
 

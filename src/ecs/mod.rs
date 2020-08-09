@@ -42,7 +42,7 @@ pub fn create_test_entities(world: &mut World) {
     .create_entity()
     .with(PositionComponent { map_pos: Point::new(100.0, 100.0) })
     .with(VisualComponent { 
-               sprite_sheet_name: "assets/sara-atlas.png".to_string(), 
+               sprite_sheet_name: "campaigns/TestGame/sprite_sheets/sara-atlas.png".to_string(), 
                sprite_location: (1,1) 
     })
     .with(AnimationComponent{
@@ -58,7 +58,7 @@ pub fn create_test_entities(world: &mut World) {
     .create_entity()
     .with(PositionComponent { map_pos: Point::new(500.0, 500.0) })
     .with(VisualComponent { 
-               sprite_sheet_name: "assets/sara-atlas.png".to_string(), 
+               sprite_sheet_name: "campaigns/TestGame/sprite_sheets/sara-atlas.png".to_string(), 
                sprite_location: (5,1) 
     })
     .build();

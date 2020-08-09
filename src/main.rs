@@ -1,5 +1,5 @@
 use coffee::{
-    graphics::{Color, Image, Frame, Window, WindowSettings},
+    graphics::{Color, Frame, Window, WindowSettings},
     load::{Task},
     //input::keyboard::KeyCode,
     //input::{self, keyboard, Input},
@@ -9,7 +9,7 @@ use coffee::{
 use specs::{World, WorldExt, Dispatcher};
 
 mod assets;
-use assets::{AssetDatabase, AssetContainer, SpriteSheet};
+use assets::{AssetDatabase, AssetContainer, load_campaign_data};
 
 mod ecs;
 
@@ -25,45 +25,24 @@ impl Game for MyGame {
 
     fn load(_window: &Window) -> Task<MyGame> {
 
-        Image::load("assets/sara-atlas.png")
-         .map(|player_atlas| {
-              
-              let mut ss = SpriteSheet::new(player_atlas, 5, 5);
-              ss.add_animation( "idle".to_string(),
-                  vec![(1,1), (2,1), (4,1), (3,1)]
-              );
-              ss.add_animation( "walk left".to_string(),
-                  vec![(1,1), (1,2), (1,3), (1,4), (1,5)]
-              );
-              ss.add_animation( "walk down".to_string(),
-                  vec![(2,1), (2,2), (2,3), (2,4), (2,5)]
-              );
-              ss.add_animation( "walk up".to_string(),
-                  vec![(3,1), (3,2), (3,3), (3,4), (3,5)]
-              );              
-              ss.add_animation( "walk right".to_string(),
-                  vec![(4,1), (4,2), (4,3), (4,4), (4,5)]
-              );
+        Task::using_gpu(|gpu| {
 
+            let mut asset_db = AssetDatabase::new();
 
-              let mut asset_db = AssetDatabase::new();
-              asset_db.add_asset(
-                   "assets/sara-atlas.png".to_string(),
-                   AssetContainer::Spritesheet( ss )
-              );
+            load_campaign_data("campaigns/TestGame", gpu, &mut asset_db);
 
-              let mut world = World::new();
-              ecs::register_components(&mut world);
-              ecs::create_test_entities(&mut world);
+            let mut world = World::new();
+            ecs::register_components(&mut world);
+            ecs::create_test_entities(&mut world);
 
-              //insert data into the world
-              world.insert(asset_db); 
+            //insert data into the world
+            world.insert(asset_db); 
 
-              MyGame { 
-                  world,
-                  render_dispatcher: ecs::build_render_dispatcher(),
-                  data_dispatcher: ecs::build_data_dispatcher(),
-              }
+            Ok(MyGame { 
+                world,
+                render_dispatcher: ecs::build_render_dispatcher(),
+                data_dispatcher: ecs::build_data_dispatcher(),
+            })
          })
 
     }
