@@ -1,3 +1,7 @@
+#[macro_use] extern crate log;
+extern crate simplelog;
+
+
 use coffee::{
     graphics::{Color, Frame, Window, WindowSettings},
     load::{Task},
@@ -58,11 +62,13 @@ impl Game for MyGame {
         let mut asset_database = world.write_resource::<AssetDatabase>();
 
 
-        //TODO this isn't good. we should only iterate over assets that need to be drawn
+        //TODO this isn't good. We should only iterate over assets that need to be drawn
         for (_, asset_container) in asset_database.get_asset_iter_mut() {
         
             match asset_container {
 
+                //TODO we should use a trait or something so we can generically check if asset 
+                //  container has an object that is renderable. Then just grab the batch and draw it.
                 AssetContainer::Spritesheet(spritesheet) => {
                     spritesheet.batch.draw( &mut frame.as_target() );
                     spritesheet.batch.clear();
@@ -81,6 +87,17 @@ impl Game for MyGame {
 
 
 fn main() {
+    //setup logging system
+    simplelog::CombinedLogger::init(
+        vec![
+            simplelog::TermLogger::new(
+                  simplelog::LevelFilter::Warn, 
+                  simplelog::Config::default(), 
+                  simplelog::TerminalMode::Mixed
+            ).unwrap(),
+        ]
+    ).unwrap();
+
     MyGame::run(WindowSettings {
         title: String::from("A caffeinated game"),
         size: (1280, 1024),

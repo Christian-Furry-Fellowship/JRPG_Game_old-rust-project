@@ -20,7 +20,10 @@ impl<'a> System<'a> for RenderSystem {
 
         for (position, visual) in (&position, &visual).join() {
 
-
+            //We handle each type of renderable asset a bit differently. But in general
+            //  we add the image or a portion of the image to the asset's internal Batch object
+            //  at the position component's position. Then when render loop happens later,
+            //  every thing that uses this image gets efficenttly drawn to the screen at once.
             match asset_database.get_asset(&visual.sprite_sheet_name) {
                 AssetContainer::Spritesheet(atlas) => {
                     let row    = visual.sprite_location.0;
@@ -28,8 +31,18 @@ impl<'a> System<'a> for RenderSystem {
             
                     atlas.add_to_batch(position.map_pos, row, column); 
                 }
-                _ => continue
+
+                //if no asset matches one of the above then it is not renderable.
+                _ => {
+                    warn!("[Render System] {} {} {}.",
+                          "Missing asset",
+                          visual.sprite_sheet_name,
+                          "or asset type not renderable",
+                    );
+                    continue;
+                }
             };
+
         }
     }
 }

@@ -44,11 +44,29 @@ impl<'a> System<'a> for AnimationSystem {
                     //set the new sprite on the visual component
                     match animation_set.get(animation.index) {
                         Option::Some(location) => visual.sprite_location = *location,
-                        Option::None => visual.sprite_location = (1,1),
+                        Option::None => {
+                            warn!("[Animation System] {} '{}' {} {} {}. {}.",
+                                  "Requested animation set",
+                                  animation.name,
+                                  "in sprite sheet",
+                                  visual.sprite_sheet_name,
+                                  "is missing",
+                                  "Defaulting to first image in sprite sheet",
+                            );
+                            visual.sprite_location = (1,1);
+                        },
                     }
                     
                 }
-                _ => continue
+                _ => {
+                    warn!("[Animation System] {} {} {}. {}.",
+                          "Requested sprite sheet",
+                          visual.sprite_sheet_name,
+                          "does not exist",
+                          "Entiry will be invisible",
+                    );
+                    continue;
+                }
             };
 
         }

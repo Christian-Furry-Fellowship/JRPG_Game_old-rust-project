@@ -1,14 +1,17 @@
 use std::path::{Path, PathBuf};
 use std::ffi::OsStr;
 
+//For image loading and hooking into the Task system
 use coffee::{
     load::Task,
     graphics::Image,
 };
 use coffee::graphics::Gpu;
 
+//For config file loading and parsing 
 use config::*;
 
+//To locate all config files
 extern crate walkdir;
 use walkdir::WalkDir;
 
@@ -26,20 +29,38 @@ pub fn load_campaign_data(path: &str, gpu: &mut Gpu, asset_db: &mut AssetDatabas
     
     //load all config files under the campain folder
     let mut campaign_config_paths = find_config_files(path);
-
+    
     //for each config file, load it then load the associated asset
     while let Some(config_path) = campaign_config_paths.pop() {
         
         let config =
         match load_config_task(&config_path).run(gpu) {
             Ok(config) => config,
-            Err(_) => continue, //TODO log error
+            Err(e) => {
+                warn!("[Asset Loading] Could not load config file. Following error returned: {}", e);
+                continue //skip this config file. TODO never gets to the error message at end of loop
+            },
         };
 
-        //TODO make case insensitive
-        match config.get_str("type").unwrap_or("".to_string()).as_str() {
+        //TODO make type case insensitive
+        let asset_was_loaded = match config.get_str("type").unwrap_or("".to_string()).as_str() {
             "sprite sheet" => load_sprite_sheet(&config, &config_path, gpu, asset_db),
-            _ => println!("{}", "Type key does not exist or type malformed."),
+            _ => {
+                warn!("[Asset Loading] 'Type' key does not exist or value is not supported. Config File Path: {}",
+                       config_path.to_str().unwrap());
+                false
+            },
+        };
+
+        //do some extra logging to help bring errors to people's attention.
+        if asset_was_loaded { 
+            info!("[Asset Loading] Loaded asset relating to config file {}", 
+                  config_path.to_str().unwrap());
+        } else {
+            error!("[Asset Loading] Failed to load asset relating to config file {}. {}", 
+                   config_path.to_str().unwrap(),
+                   "Please review previous warnings."
+            );
         }
     }
 }
@@ -59,8 +80,11 @@ fn find_config_files(path: &str) -> Vec<PathBuf> {
     let mut config_file_paths = vec![];
 
     for entry in WalkDir::new(path).into_iter().filter_map(|e| e.ok()) {
-        if is_config_ext( entry.path() ) {
+        if is_config_ext( entry.path() ) 
+        && entry.path().file_stem().unwrap_or(OsStr::new("")) != "campaign" {
+
             config_file_paths.push(entry.into_path());
+
         }
     }
     
@@ -68,28 +92,50 @@ fn find_config_files(path: &str) -> Vec<PathBuf> {
 }
 
 
+
+
+//utility function to create a coffee error since it's a bit of a pain.
+fn make_coffee_err_from_str(msg: &str) -> coffee::Error {
+    coffee::Error::IO(
+        std::io::Error::new( std::io::ErrorKind::Other, msg )
+    )
+}
+
 //creates a task for loading a config file and it's resources
 fn load_config_task(file_path: &PathBuf) -> Task<Config> {
-
-    //TODO Should return error
-    let str_path = file_path.to_str()
-                            .expect("Could not convert file path to str")
-                            .to_owned(); //needed so closure below can capture
+    //needed so closure below can capture
+    let path = file_path.clone();
+                     
 
     Task::new(move || {
+        //coerce into string value or return error
+        let str_path = match path.to_str() {
+            Some(string) => string,
 
+            //Will be logged in the function that runs the task.
+            None => return Err(
+                make_coffee_err_from_str("Config path cannot be converted to string.")
+            ),
+        };
+
+        //create the config struct and load in the given file either retuning populated
+        //   config file or a relevant error
         let mut config_data = Config::default();
-        //TODO Replace unwrap with proper error handling
-        config_data.merge(File::with_name(&str_path)).unwrap();
+        match config_data.merge(File::with_name(&str_path)) {
+            Ok(_) => Ok(config_data),
 
-        Ok(config_data)
+            //Coerce err to an error type we can return. 
+            //Will be logged in the function that runs the task.
+            Err(err) => Err( make_coffee_err_from_str( err.to_string().as_str() ) ),
+        }
     })
 }
 
 
 //load sprite sheets
+//TODO, maybe should make this return a task also?
 fn load_sprite_sheet(config: &Config, config_path: &PathBuf, 
-                        gpu: &mut Gpu, asset_db: &mut AssetDatabase) {
+                        gpu: &mut Gpu, asset_db: &mut AssetDatabase) -> bool {
 
         //pull data we need and validate
         let file = config.get_str("file");
@@ -98,25 +144,59 @@ fn load_sprite_sheet(config: &Config, config_path: &PathBuf,
         let animations = config.get_table("animations");
 
         if file.is_err() || rows.is_err() || columns.is_err() {
-            return //config missing required values TODO log exactly what the error was 
+            let err_msg_head = format!("{} {} {}. {}",
+                                   "[Asset Loading]",
+                                   "Could not find required config value for Spritesheet type in config file",
+                                   config_path.to_str().unwrap_or("<error could not convert config path to str>"),
+                                   "Error follows: ");
+
+            if let Err(err) = file { warn!("{} {}", err_msg_head, err); }
+            if let Err(err) = rows { warn!("{} {}", err_msg_head, err); }
+            if let Err(err) = columns { warn!("{} {}", err_msg_head, err); }
+
+            return false //config missing required values
         }
 
 
         //process the file path and asset name to the right types
-        let image_path = config_path.parent()
-                              .expect("Parent missing from config path") //TODO handle better
-                              .join(file.ok().expect("File value is missing while loading."));
+
+        // assume image path is given as relative to config path hence taking the parent as a starting point. 
+        let image_path = match config_path.parent() {
+            
+            Some(path_partial) =>  path_partial.join(
+                                      //this ok() is safe as we tested if file is err above
+                                      file.ok().expect("File value is missing while loading.")
+                                   ),
+            None => {
+                warn!("{} {}", 
+                      "[Asset Loading] Parent missing from config path when processing",
+                      config_path.to_str().unwrap_or("<error could not convert config path to str>"),
+                );
+                return false //getting parent from path failed somehow. Shouldn't ever happen naturally.
+            }
+        };
 
         let asset_name = match image_path.clone().into_os_string().into_string() {
             Ok(name) => name,
-            Err(_) => return //name is not UTF-8 compatable TODO log exactly what the error was
+            Err(err) => {
+                warn!("[Asset Loading] {}", 
+                      err.into_string().unwrap_or("<Could not convert OsString err into string>".to_string()));
+                return false //name is not UTF-8 compatable so abort
+            }
         };
 
 
         //try to load image
         let image = match Image::load( image_path.clone() ).run(gpu) {
              Ok(image) => image,
-             Err(_) => return //load image failed. TODO log exactly what the error was
+             Err(err) => {
+                 warn!("[Asset Loading] Could not load Image at {} related to config file {}. Following error returned: {}", 
+                       image_path.clone().to_str().unwrap_or("<error could not convert image path to str>"),
+                       config_path.to_str().unwrap_or("<error could not convert config path to str>"),
+                       err,
+                 );
+                 return false //load image failed.
+             }
         };
                         
 
@@ -124,16 +204,26 @@ fn load_sprite_sheet(config: &Config, config_path: &PathBuf,
         let mut spritesheet = SpriteSheet::new( 
             image,
             rows.ok().expect("row convert error") as u16, 
-            columns.ok().expect("column convert error") as u16 
+            columns.ok().expect("column convert error") as u16, 
         );
         
         if animations.is_ok() {
             for (animation_name, tuple_list) in animations.ok().unwrap().iter() {
                 match tuple_list.clone().try_into::< Vec<(u16,u16)> >() {
                     Ok(sprite_pos_array) => 
+                        //TODO might want to do additional checking of data. 
+                        //    No error is thrown for having an extra value regardless if it is an int or not.
+                        //    Error branch will happen if a string is in 1st or 2nd location or if a tuple is 
+                        //      replaced by something else.
                         spritesheet.add_animation(animation_name.clone(), sprite_pos_array),
-                    Err(_) => {
-                        //TODO log error better
+
+                    Err(err) => {
+                        warn!("[Asset Loading] Animation {} does not follow form {} in config file {}. Following error returned: {}", 
+                              animation_name,
+                              "[ [row_1, col_1], ..., [row_n, col_n] ]",
+                              config_path.to_str().unwrap_or("<error could not convert config path to str>"),
+                              err,
+                        );
                         continue;
                     }
                 }
@@ -141,5 +231,6 @@ fn load_sprite_sheet(config: &Config, config_path: &PathBuf,
         }
 
         asset_db.add_asset(asset_name, AssetContainer::Spritesheet(spritesheet));
+        return true;
 }
 
