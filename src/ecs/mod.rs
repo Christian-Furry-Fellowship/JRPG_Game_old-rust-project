@@ -9,23 +9,37 @@ pub use render_system::RenderSystem;
 mod animation_system;
 pub use animation_system::AnimationSystem;
 
+mod player_control_system;
+pub use player_control_system::PlayerControlSystem;
+
 //pull in components
 mod position_component;
 pub use position_component::PositionComponent;
+
 mod gfx_components;
-pub use gfx_components::VisualComponent;
-pub use gfx_components::AnimationComponent;
+pub use gfx_components::{VisualComponent, AnimationComponent};
+
+mod control_components;
+pub use control_components::PlayerControlComponent;
+
 
 pub fn register_components(world: &mut World) {
     world.register::<PositionComponent>();
     world.register::<VisualComponent>();
     world.register::<AnimationComponent>();
+    world.register::<PlayerControlComponent>();
 }
 
 
 pub fn build_data_dispatcher() -> Dispatcher<'static, 'static> {
     DispatcherBuilder::new()
     //.with(HelloWorld, "hello_world", &[])
+    .build()
+}
+
+pub fn build_input_handling_dispatcher() -> Dispatcher<'static, 'static> {
+    DispatcherBuilder::new()
+    .with(PlayerControlSystem, "PlayerControlSystem", &[])
     .build()
 }
 
@@ -40,17 +54,13 @@ pub fn create_test_entities(world: &mut World) {
     //player
     world
     .create_entity()
+    .with(PlayerControlComponent { speed: 5.0 })
     .with(PositionComponent { map_pos: Point::new(100.0, 100.0) })
     .with(VisualComponent { 
                sprite_sheet_name: "campaigns/TestGame/sprite_sheets/sara-atlas.png".to_string(), 
                sprite_location: (1,1) 
     })
-    .with(AnimationComponent{
-        name: "walk left".to_string(),
-        index: 0,
-        speed: 5,
-        timer: 5,
-    })
+    .with(AnimationComponent::new(5))
     .build();
 
     //another character

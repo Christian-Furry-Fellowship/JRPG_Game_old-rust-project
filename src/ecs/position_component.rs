@@ -6,5 +6,5 @@ use coffee::graphics::Point;
 #[derive(Component)]
 #[storage(VecStorage)]
 pub struct PositionComponent {
-    pub map_pos: Point
+    pub map_pos: Point,
 }

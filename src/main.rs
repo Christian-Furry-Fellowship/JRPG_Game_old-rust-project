@@ -5,8 +5,8 @@ extern crate simplelog;
 use coffee::{
     graphics::{Color, Frame, Window, WindowSettings},
     load::{Task},
-    //input::keyboard::KeyCode,
-    //input::{self, keyboard, Input},
+    input::KeyboardAndMouse,
+    input::keyboard::KeyCode,
     Game, Timer
 };
 
@@ -17,14 +17,18 @@ use assets::{AssetDatabase, AssetContainer, load_campaign_data};
 
 mod ecs;
 
+mod handle_input;
+use handle_input::ControlData;
+
 struct MyGame {
     world: World,
     render_dispatcher: Dispatcher<'static, 'static>,
+    input_dispatcher: Dispatcher<'static, 'static>,
     data_dispatcher: Dispatcher<'static, 'static>,
 }
 
 impl Game for MyGame {
-    type Input = (); // No input data
+    type Input = KeyboardAndMouse;
     type LoadingScreen = (); // No loading screen
 
     fn load(_window: &Window) -> Task<MyGame> {
@@ -41,14 +45,34 @@ impl Game for MyGame {
 
             //insert data into the world
             world.insert(asset_db); 
+            world.insert(ControlData { move_left: false, move_right: false, move_up: false, move_down: false }); 
 
             Ok(MyGame { 
                 world,
                 render_dispatcher: ecs::build_render_dispatcher(),
+                input_dispatcher: ecs::build_input_handling_dispatcher(),
                 data_dispatcher: ecs::build_data_dispatcher(),
             })
          })
 
+    }
+
+    fn interact(&mut self, kbm: &mut KeyboardAndMouse, _window: &mut Window) {
+        let mut world = & self.world;
+
+        //closure is needed so control_data can go out of scope and be barrowed again when running the system
+        {
+            let mut control_data = world.write_resource::<ControlData>();
+
+            let kb = kbm.keyboard();
+        
+            control_data.move_left  = kb.is_key_pressed(KeyCode::A) || kb.is_key_pressed(KeyCode::Left);
+            control_data.move_right = kb.is_key_pressed(KeyCode::D) || kb.is_key_pressed(KeyCode::Right);
+            control_data.move_up = kb.is_key_pressed(KeyCode::W) || kb.is_key_pressed(KeyCode::Up);
+            control_data.move_down = kb.is_key_pressed(KeyCode::S) || kb.is_key_pressed(KeyCode::Down);
+        }
+
+        self.input_dispatcher.dispatch(&mut world);
     }
 
     fn draw(&mut self, frame: &mut Frame, _timer: &Timer) {
