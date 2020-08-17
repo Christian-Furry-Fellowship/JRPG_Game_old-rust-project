@@ -4,7 +4,7 @@ use super::position_component::PositionComponent;
 use super::control_components::PlayerControlComponent;
 use super::gfx_components::AnimationComponent;
 
-use crate::handle_input::ControlData;
+use crate::game_state::playing_state::ControlData;
 
 //the animation system advances the sprite selection on spritesheets to make an animation
 pub struct PlayerControlSystem;

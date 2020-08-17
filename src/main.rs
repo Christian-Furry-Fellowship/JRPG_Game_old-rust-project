@@ -1,112 +1,74 @@
 #[macro_use] extern crate log;
 extern crate simplelog;
 
+mod assets;
+mod game_state;
+mod ecs;
+
 
 use coffee::{
-    graphics::{Color, Frame, Window, WindowSettings},
+    graphics::{Frame, Window, WindowSettings},
     load::{Task},
     input::KeyboardAndMouse,
-    input::keyboard::KeyCode,
+    ui::{UserInterface, Renderer, Element},
     Game, Timer
 };
 
-use specs::{World, WorldExt, Dispatcher};
+use game_state::{UIAction, GameState, MainMenuState};
 
-mod assets;
-use assets::{AssetDatabase, AssetContainer, load_campaign_data};
 
-mod ecs;
-
-mod handle_input;
-use handle_input::ControlData;
-
-struct MyGame {
-    world: World,
-    render_dispatcher: Dispatcher<'static, 'static>,
-    input_dispatcher: Dispatcher<'static, 'static>,
-    data_dispatcher: Dispatcher<'static, 'static>,
+struct Application {
+    current_game_state: Box<dyn GameState>,
 }
 
-impl Game for MyGame {
+impl Game for Application {
     type Input = KeyboardAndMouse;
     type LoadingScreen = (); // No loading screen
 
-    fn load(_window: &Window) -> Task<MyGame> {
-
-        Task::using_gpu(|gpu| {
-
-            let mut asset_db = AssetDatabase::new();
-
-            load_campaign_data("campaigns/TestGame", gpu, &mut asset_db);
-
-            let mut world = World::new();
-            ecs::register_components(&mut world);
-            ecs::create_test_entities(&mut world);
-
-            //insert data into the world
-            world.insert(asset_db); 
-            world.insert(ControlData { move_left: false, move_right: false, move_up: false, move_down: false }); 
-
-            Ok(MyGame { 
-                world,
-                render_dispatcher: ecs::build_render_dispatcher(),
-                input_dispatcher: ecs::build_input_handling_dispatcher(),
-                data_dispatcher: ecs::build_data_dispatcher(),
-            })
+    fn load(_window: &Window) -> Task<Application> {
+        Task::succeed(|| {
+            Application { 
+                current_game_state: Box::new( MainMenuState::new() ),
+            }
          })
-
     }
 
-    fn interact(&mut self, kbm: &mut KeyboardAndMouse, _window: &mut Window) {
-        let mut world = & self.world;
-
-        //closure is needed so control_data can go out of scope and be barrowed again when running the system
-        {
-            let mut control_data = world.write_resource::<ControlData>();
-
-            let kb = kbm.keyboard();
-        
-            control_data.move_left  = kb.is_key_pressed(KeyCode::A) || kb.is_key_pressed(KeyCode::Left);
-            control_data.move_right = kb.is_key_pressed(KeyCode::D) || kb.is_key_pressed(KeyCode::Right);
-            control_data.move_up = kb.is_key_pressed(KeyCode::W) || kb.is_key_pressed(KeyCode::Up);
-            control_data.move_down = kb.is_key_pressed(KeyCode::S) || kb.is_key_pressed(KeyCode::Down);
-        }
-
-        self.input_dispatcher.dispatch(&mut world);
+    //handles general input
+    fn interact(&mut self, kbm: &mut KeyboardAndMouse, window: &mut Window) {
+        self.current_game_state.interact(kbm, window);
     }
 
-    fn draw(&mut self, frame: &mut Frame, _timer: &Timer) {
-        // Clear the current frame
-        frame.clear(Color::BLACK);
+    //draws non ui elements to the screen
+    fn draw(&mut self, frame: &mut Frame, timer: &Timer) {
+        self.current_game_state.draw(frame, timer);
+    }
 
-        let mut world = & self.world;
-        self.render_dispatcher.dispatch(&mut world);
-
-
-        let mut asset_database = world.write_resource::<AssetDatabase>();
-
-
-        //TODO this isn't good. We should only iterate over assets that need to be drawn
-        for (_, asset_container) in asset_database.get_asset_iter_mut() {
-        
-            match asset_container {
-
-                //TODO we should use a trait or something so we can generically check if asset 
-                //  container has an object that is renderable. Then just grab the batch and draw it.
-                AssetContainer::Spritesheet(spritesheet) => {
-                    spritesheet.batch.draw( &mut frame.as_target() );
-                    spritesheet.batch.clear();
-                },
-
-                _ => return
-            };
-
-        }
+    //check if we should shutdown the program
+    fn is_finished(&self) -> bool {
+        self.current_game_state.is_finished()
     }
 }
 
 
+impl UserInterface for Application {
+    type Message = UIAction;
+    type Renderer = Renderer; // We use the built-in Renderer
 
+    // The update logic, called when a UI message is produced
+    fn react(&mut self, message: UIAction, window: &mut Window) {
+        //change our state if the current one requests it 
+        match self.current_game_state.react(message, window) {
+            Option::None => return,
+            Option::Some(new_state) => self.current_game_state = new_state,
+        }
+    }
+
+    // gets the UI layout and draws it to the screen ontop of whatever else has been drawn
+    fn layout(&mut self, window: &Window) -> Element<UIAction> {
+        self.current_game_state.layout(window)
+    }
+
+}
 
 
 
@@ -122,12 +84,12 @@ fn main() {
         ]
     ).unwrap();
 
-    MyGame::run(WindowSettings {
+    <Application as UserInterface>::run(WindowSettings {
         title: String::from("A caffeinated game"),
         size: (1280, 1024),
         resizable: true,
         fullscreen: false,
-        maximized: false,
+        maximized: true,
     })
     .expect("An error occured while starting the game");
 }
