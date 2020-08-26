@@ -10,6 +10,8 @@ use super::UIAction;
 
 use super::playing_state::PlayingState;
 
+use crate::assets::audio::{AudioClip, ClipCategory, Playlist};
+use std::path::PathBuf;
 
 pub struct MainMenuState {
     start_button: button::State,
@@ -17,18 +19,29 @@ pub struct MainMenuState {
     quit_button: button::State,
 
     quit_requested: bool, 
+    music_playlist: Playlist,
 }
 
 impl MainMenuState {
 
 
     pub fn new() -> MainMenuState {
+        //TODO building this playlist is a bit rough. Refine it via a loading function for builtin resources.
+        let clip1_path: PathBuf = ["builtin", "eclipse.mp3"].iter().collect();
+        let clip1 = AudioClip::new( clip1_path, ClipCategory::Music );
+
+        let clip2_path: PathBuf = ["builtin", "in-love.mp3"].iter().collect();
+        let clip2 = AudioClip::new(clip2_path, ClipCategory::Music );
+
+        let playlist = Playlist::new(vec![clip1, clip2]);
+
         MainMenuState {
             start_button: button::State::new(),
             load_button: button::State::new(),
             quit_button: button::State::new(),
 
             quit_requested: false,
+            music_playlist: playlist,
         }
     }
 
@@ -50,7 +63,6 @@ impl GameState for MainMenuState {
                 ),
             UIAction::LoadGame => warn!("Load game triggered"), //TODO Implement game loading
             UIAction::QuitGame => self.quit_requested = true,
-            _ => (),
         };
 
         Option::None
@@ -85,6 +97,12 @@ impl GameState for MainMenuState {
             )
             .into()
     }
+
+    
+    fn update(&mut self, _window: &Window) {
+        self.music_playlist.maintain_looping();
+    }
+    
 
     fn is_finished(&self) -> bool {
         self.quit_requested

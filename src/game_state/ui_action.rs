@@ -7,7 +7,6 @@
 //  Might beable to fix if we implement our own Renderer, not positive.
 #[derive(Debug, Clone, Copy)]
 pub enum UIAction {
-    None,
     NewGame,
     LoadGame,
     QuitGame,

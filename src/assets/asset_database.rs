@@ -2,13 +2,14 @@ use std::collections::HashMap;
 use std::collections::hash_map::IterMut;
 
 use config::Config;
-
 use super::SpriteSheet;
+use super::audio::AudioClip;
 
 pub enum AssetContainer {
     DoesNotExist, //does not exist
-    Spritesheet(SpriteSheet),
     ConfigStore(Config),
+    Spritesheet(SpriteSheet),
+    AudioClip(AudioClip),
 }
 
 

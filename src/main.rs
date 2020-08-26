@@ -33,6 +33,11 @@ impl Game for Application {
          })
     }
 
+    //runs a generic update for data and handling of misc things.
+    fn update(&mut self, window: &Window) {
+        self.current_game_state.update(window);
+    }
+
     //handles general input
     fn interact(&mut self, kbm: &mut KeyboardAndMouse, window: &mut Window) {
         self.current_game_state.interact(kbm, window);

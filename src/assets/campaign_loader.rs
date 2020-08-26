@@ -17,6 +17,7 @@ use walkdir::WalkDir;
 
 
 use super::{AssetDatabase, AssetContainer, SpriteSheet};
+use super::audio::{ClipCategory, AudioClip};
 
 
 //loads the metadata for each campaign so we can display the options
@@ -45,6 +46,7 @@ pub fn load_campaign_data(path: &str, gpu: &mut Gpu, asset_db: &mut AssetDatabas
         //TODO make type case insensitive
         let asset_was_loaded = match config.get_str("type").unwrap_or("".to_string()).as_str() {
             "sprite sheet" => load_sprite_sheet(&config, &config_path, gpu, asset_db),
+            "audio clip" => load_audio_clip(&config, &config_path, asset_db),
             _ => {
                 warn!("[Asset Loading] 'Type' key does not exist or value is not supported. Config File Path: {}",
                        config_path.to_str().unwrap());
@@ -137,100 +139,167 @@ fn load_config_task(file_path: &PathBuf) -> Task<Config> {
 fn load_sprite_sheet(config: &Config, config_path: &PathBuf, 
                         gpu: &mut Gpu, asset_db: &mut AssetDatabase) -> bool {
 
-        //pull data we need and validate
-        let file = config.get_str("file");
-        let rows = config.get_int("rows");
-        let columns = config.get_int("columns");
-        let animations = config.get_table("animations");
+    //pull data we need and validate
+    let file = config.get_str("file");
+    let rows = config.get_int("rows");
+    let columns = config.get_int("columns");
+    let animations = config.get_table("animations");
 
-        if file.is_err() || rows.is_err() || columns.is_err() {
-            let err_msg_head = format!("{} {} {}. {}",
-                                   "[Asset Loading]",
-                                   "Could not find required config value for Spritesheet type in config file",
-                                   config_path.to_str().unwrap_or("<error could not convert config path to str>"),
-                                   "Error follows: ");
+    if file.is_err() || rows.is_err() || columns.is_err() {
+        let err_msg_head = format!("{} {} {}. {}",
+                               "[Asset Loading]",
+                               "Could not find required config value for sprite sheet type in config file",
+                               config_path.to_str().unwrap_or("<error could not convert config path to str>"),
+                               "Error follows: ");
 
-            if let Err(err) = file { warn!("{} {}", err_msg_head, err); }
-            if let Err(err) = rows { warn!("{} {}", err_msg_head, err); }
-            if let Err(err) = columns { warn!("{} {}", err_msg_head, err); }
+        if let Err(err) = file { warn!("{} {}", err_msg_head, err); }
+        if let Err(err) = rows { warn!("{} {}", err_msg_head, err); }
+        if let Err(err) = columns { warn!("{} {}", err_msg_head, err); }
 
-            return false //config missing required values
+        return false //config missing required values
+    }
+
+
+    //process the file path and asset name to the right types
+
+    // assume image path is given as relative to config path hence taking the parent as a starting point. 
+    let image_path = match config_path.parent() {
+           
+        Some(dir_path) => dir_path.join(file.ok().expect("File value is missing while loading.")),
+
+        //getting parent from path failed somehow. Shouldn't ever happen naturally.
+        None => {
+            warn!("{} {}", 
+                  "[Asset Loading] Parent missing from config path when processing",
+                  config_path.to_str().unwrap_or("<error could not convert config path to str>"),
+            ); 
+            return false;
+        },
+    };
+
+
+    let asset_name = match image_path.clone().into_os_string().into_string() {
+        Ok(name) => name,
+        Err(err) => {
+            warn!("[Asset Loading] {}", 
+                  err.into_string().unwrap_or("<Could not convert OsString err into string>".to_string()));
+            return false //name is not UTF-8 compatable so abort
         }
+    };
 
 
-        //process the file path and asset name to the right types
-
-        // assume image path is given as relative to config path hence taking the parent as a starting point. 
-        let image_path = match config_path.parent() {
-            
-            Some(path_partial) =>  path_partial.join(
-                                      //this ok() is safe as we tested if file is err above
-                                      file.ok().expect("File value is missing while loading.")
-                                   ),
-            None => {
-                warn!("{} {}", 
-                      "[Asset Loading] Parent missing from config path when processing",
-                      config_path.to_str().unwrap_or("<error could not convert config path to str>"),
-                );
-                return false //getting parent from path failed somehow. Shouldn't ever happen naturally.
-            }
-        };
-
-        let asset_name = match image_path.clone().into_os_string().into_string() {
-            Ok(name) => name,
-            Err(err) => {
-                warn!("[Asset Loading] {}", 
-                      err.into_string().unwrap_or("<Could not convert OsString err into string>".to_string()));
-                return false //name is not UTF-8 compatable so abort
-            }
-        };
-
-
-        //try to load image
-        let image = match Image::load( image_path.clone() ).run(gpu) {
-             Ok(image) => image,
-             Err(err) => {
-                 warn!("[Asset Loading] Could not load Image at {} related to config file {}. Following error returned: {}", 
-                       image_path.clone().to_str().unwrap_or("<error could not convert image path to str>"),
-                       config_path.to_str().unwrap_or("<error could not convert config path to str>"),
-                       err,
-                 );
-                 return false //load image failed.
-             }
-        };
+    //try to load image
+    let image = match Image::load( image_path.clone() ).run(gpu) {
+         Ok(image) => image,
+         Err(err) => {
+             warn!("[Asset Loading] Could not load Image at {} related to config file {}. Following error returned: {}", 
+                   image_path.clone().to_str().unwrap_or("<error could not convert image path to str>"),
+                   config_path.to_str().unwrap_or("<error could not convert config path to str>"),
+                   err,
+             );
+             return false //load image failed.
+         }
+    };
                         
 
-        //create sprite sheet, add animations, then add the new asset to the database
-        let mut spritesheet = SpriteSheet::new( 
-            image,
-            rows.ok().expect("row convert error") as u16, 
-            columns.ok().expect("column convert error") as u16, 
-        );
+    //create sprite sheet, add animations, then add the new asset to the database
+    let mut spritesheet = SpriteSheet::new( 
+        image,
+        rows.ok().expect("row convert error") as u16, 
+        columns.ok().expect("column convert error") as u16, 
+    );
         
-        if animations.is_ok() {
-            for (animation_name, tuple_list) in animations.ok().unwrap().iter() {
-                match tuple_list.clone().try_into::< Vec<(u16,u16)> >() {
-                    Ok(sprite_pos_array) => 
-                        //TODO might want to do additional checking of data. 
-                        //    No error is thrown for having an extra value regardless if it is an int or not.
-                        //    Error branch will happen if a string is in 1st or 2nd location or if a tuple is 
-                        //      replaced by something else.
-                        spritesheet.add_animation(animation_name.clone(), sprite_pos_array),
+    if animations.is_ok() {
+        for (animation_name, tuple_list) in animations.ok().unwrap().iter() {
+            match tuple_list.clone().try_into::< Vec<(u16,u16)> >() {
+                Ok(sprite_pos_array) => 
+                    //TODO might want to do additional checking of data. 
+                    //    No error is thrown for having an extra value regardless if it is an int or not.
+                    //    Error branch will happen if a string is in 1st or 2nd location or if a tuple is 
+                    //      replaced by something else.
+                    spritesheet.add_animation(animation_name.clone(), sprite_pos_array),
 
-                    Err(err) => {
-                        warn!("[Asset Loading] Animation {} does not follow form {} in config file {}. Following error returned: {}", 
-                              animation_name,
-                              "[ [row_1, col_1], ..., [row_n, col_n] ]",
-                              config_path.to_str().unwrap_or("<error could not convert config path to str>"),
-                              err,
-                        );
-                        continue;
-                    }
+                Err(err) => {
+                    warn!("[Asset Loading] Animation {} does not follow form {} in config file {}. Following error returned: {}", 
+                          animation_name,
+                          "[ [row_1, col_1], ..., [row_n, col_n] ]",
+                          config_path.to_str().unwrap_or("<error could not convert config path to str>"),
+                          err,
+                    );
+                    continue;
                 }
             }
         }
+    }
 
-        asset_db.add_asset(asset_name, AssetContainer::Spritesheet(spritesheet));
-        return true;
+    asset_db.add_asset(asset_name, AssetContainer::Spritesheet(spritesheet));
+    return true;
+}
+
+
+//load sound clips
+//TODO, maybe should make this return a task also?
+fn load_audio_clip(config: &Config, config_path: &PathBuf, asset_db: &mut AssetDatabase) -> bool {
+
+    //pull data we need and validate
+    let file = config.get_str("file");
+    let category = config.get_str("category");
+
+    if file.is_err() || category.is_err() {
+        let err_msg_head = format!("{} {} {}. {}",
+                               "[Asset Loading]",
+                               "Could not find required config value for audio clip type in config file",
+                               config_path.to_str().unwrap_or("<error could not convert config path to str>"),
+                               "Error follows: ");
+
+        if let Err(err) = file { warn!("{} {}", err_msg_head, err); }
+        if let Err(err) = category { warn!("{} {}", err_msg_head, err); }
+
+        return false //config missing required values
+    }
+
+    //TODO make case insensitive
+    let clip_category = match category.unwrap().as_str() {
+         "voice"   => ClipCategory::Voice,
+         "music"   => ClipCategory::Music,
+         "effects" => ClipCategory::Effects,
+         failed_category => {
+             warn!("[Asset Loading] Provided audio category '{}' is not a valid option. Related to config file {}.",
+                   failed_category,
+                   config_path.to_str().unwrap_or("<error could not convert config path to str>"),
+             );
+             return false;
+         }
+    };
+
+    // assume image path is given as relative to config path hence taking the parent as a starting point. 
+    let audio_path = match config_path.parent() {
+           
+        Some(dir_path) => dir_path.join(file.ok().expect("File value is missing while loading.")),
+
+        //getting parent from path failed somehow. Shouldn't ever happen naturally.
+        None => {
+            warn!("{} {}", 
+                  "[Asset Loading] Parent missing from config path when processing",
+                  config_path.to_str().unwrap_or("<error could not convert config path to str>"),
+            ); 
+            return false;
+        },
+    };
+
+
+    let asset_name = match audio_path.clone().into_os_string().into_string() {
+        Ok(name) => name,
+        Err(err) => {
+            warn!("[Asset Loading] {}", 
+                  err.into_string().unwrap_or("<Could not convert OsString err into string>".to_string()));
+            return false; //name is not UTF-8 compatable so abort
+        }
+    }; 
+
+    let audio_clip = AudioClip::new(audio_path, clip_category);
+
+    asset_db.add_asset(asset_name, AssetContainer::AudioClip(audio_clip));
+    return true;
 }
 
