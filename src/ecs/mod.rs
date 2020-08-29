@@ -1,6 +1,7 @@
 use specs::{World, WorldExt, Builder, Dispatcher, DispatcherBuilder};
 
 use coffee::graphics::Point;
+use std::path::PathBuf;
 
 //pull in systems
 mod render_system;
@@ -51,13 +52,16 @@ pub fn build_render_dispatcher() -> Dispatcher<'static, 'static> {
 }
 
 pub fn create_test_entities(world: &mut World) {
+    //TODO temp until we get better entity spawning functionality.
+    let sprite_sheet_name = PathBuf::from("campaigns/TestGame/sprite_sheets/sara-atlas.png").to_str().unwrap().to_string();
+
     //player
     world
     .create_entity()
     .with(PlayerControlComponent { speed: 5.0 })
     .with(PositionComponent { map_pos: Point::new(100.0, 100.0) })
     .with(VisualComponent { 
-               sprite_sheet_name: "campaigns/TestGame/sprite_sheets/sara-atlas.png".to_string(), 
+               sprite_sheet_name: sprite_sheet_name.clone(), 
                sprite_location: (1,1) 
     })
     .with(AnimationComponent::new(5))
@@ -68,7 +72,7 @@ pub fn create_test_entities(world: &mut World) {
     .create_entity()
     .with(PositionComponent { map_pos: Point::new(500.0, 500.0) })
     .with(VisualComponent { 
-               sprite_sheet_name: "campaigns/TestGame/sprite_sheets/sara-atlas.png".to_string(), 
+               sprite_sheet_name: sprite_sheet_name.clone(), 
                sprite_location: (5,1) 
     })
     .build();

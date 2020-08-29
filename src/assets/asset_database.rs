@@ -7,7 +7,6 @@ use super::audio::AudioClip;
 
 pub enum AssetContainer {
     DoesNotExist, //does not exist
-    ConfigStore(Config),
     Spritesheet(SpriteSheet),
     AudioClip(AudioClip),
 }

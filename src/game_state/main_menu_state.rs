@@ -57,10 +57,13 @@ impl GameState for MainMenuState {
 
     fn react(&mut self, message: UIAction, window: &mut Window) -> Option< Box<dyn GameState> > {
         match message {
-            UIAction::NewGame => 
+            UIAction::NewGame => {
+                //TODO temp until we get campaign selection working.
+                let path = PathBuf::from("campaigns/TestGame");
                 return Option::Some(
-                    Box::new(PlayingState::new(window.gpu(), "campaigns/TestGame"))
-                ),
+                    Box::new(PlayingState::new( window.gpu(), path.to_str().unwrap() ))
+                )
+            },
             UIAction::LoadGame => warn!("Load game triggered"), //TODO Implement game loading
             UIAction::QuitGame => self.quit_requested = true,
         };
