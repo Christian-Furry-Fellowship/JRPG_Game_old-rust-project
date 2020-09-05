@@ -34,7 +34,7 @@ impl AudioClip {
 
     //immediatly play the audio clip. No control over this for volume or anything else
     /*pub fn play_once(&self) {
-        let device = rodio::default_output_device().unwrap();
+        let device = super::get_audio_device().unwrap();
 
         rodio::play_raw(&device, self.make_source().convert_samples());
     }*/

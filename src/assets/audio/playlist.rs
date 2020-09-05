@@ -11,15 +11,15 @@ pub struct Playlist {
 impl Playlist {
 
     pub fn new(music_tracks: Vec<AudioClip>) -> Playlist {
-        let sink = std::thread::spawn(|| {
-            match &rodio::default_output_device() {
+        let sink = 
+            match &super::get_audio_device() {
                 Some(device) => Sink::new( device ),
                 None => {
                     error!("[Audio/Playlist] No audio device was found.");
                     Sink::new_idle().0
                 },
-            }
-        }).join().expect("[Playlist] Getting default audio device failed.");
+            };
+        
 
         //TODO should pull from some sort of settings structure and get updated whenever that changes
         sink.set_volume(0.2);
