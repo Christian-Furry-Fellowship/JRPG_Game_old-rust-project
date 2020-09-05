@@ -53,7 +53,11 @@ pub fn build_render_dispatcher() -> Dispatcher<'static, 'static> {
 
 pub fn create_test_entities(world: &mut World) {
     //TODO temp until we get better entity spawning functionality.
-    let sprite_sheet_name = PathBuf::from("campaigns/TestGame/sprite_sheets/sara-atlas.png").to_str().unwrap().to_string();
+    let path: PathBuf =  ["campaigns", "TestGame", "sprite_sheets", "sara-atlas.png"].iter().collect();
+    let sprite_sheet_name = path.to_str().unwrap().to_string();
+
+    //println!("This is the name: {}", sprite_sheet_name);
+    //panic!("kill program so we can see above print value.");
 
     //player
     world

@@ -59,7 +59,7 @@ impl GameState for MainMenuState {
         match message {
             UIAction::NewGame => {
                 //TODO temp until we get campaign selection working.
-                let path = PathBuf::from("campaigns/TestGame");
+                let path: PathBuf = ["campaigns", "TestGame"].iter().collect();
                 return Option::Some(
                     Box::new(PlayingState::new( window.gpu(), path.to_str().unwrap() ))
                 )
