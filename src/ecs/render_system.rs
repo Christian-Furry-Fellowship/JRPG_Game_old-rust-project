@@ -29,7 +29,7 @@ impl<'a> System<'a> for RenderSystem {
                     let row    = visual.sprite_location.0;
                     let column = visual.sprite_location.1;
             
-                    atlas.add_to_batch(position.map_pos, row, column); 
+                    atlas.draw_sprite(position.map_pos.0, position.map_pos.1, row, column, None); 
                 }
 
                 //if no asset matches one of the above then it is not renderable.

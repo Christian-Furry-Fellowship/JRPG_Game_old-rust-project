@@ -1,8 +1,5 @@
 use specs::{World, WorldExt, Builder, Dispatcher, DispatcherBuilder};
 
-use coffee::graphics::Point;
-use std::path::PathBuf;
-
 //pull in systems
 mod render_system;
 pub use render_system::RenderSystem;
@@ -52,20 +49,13 @@ pub fn build_render_dispatcher() -> Dispatcher<'static, 'static> {
 }
 
 pub fn create_test_entities(world: &mut World) {
-    //TODO temp until we get better entity spawning functionality.
-    let path: PathBuf =  ["campaigns", "TestGame", "sprite_sheets", "sara-atlas.png"].iter().collect();
-    let sprite_sheet_name = path.to_str().unwrap().to_string();
-
-    //println!("This is the name: {}", sprite_sheet_name);
-    //panic!("kill program so we can see above print value.");
-
     //player
     world
     .create_entity()
     .with(PlayerControlComponent { speed: 5.0 })
-    .with(PositionComponent { map_pos: Point::new(100.0, 100.0) })
+    .with(PositionComponent { map_pos: (100.0, 100.0) })
     .with(VisualComponent { 
-               sprite_sheet_name: sprite_sheet_name.clone(), 
+               sprite_sheet_name: "sara-atlas".to_string(), 
                sprite_location: (1,1) 
     })
     .with(AnimationComponent::new(5))
@@ -74,9 +64,9 @@ pub fn create_test_entities(world: &mut World) {
     //another character
     world
     .create_entity()
-    .with(PositionComponent { map_pos: Point::new(500.0, 500.0) })
+    .with(PositionComponent { map_pos: (500.0, 500.0) })
     .with(VisualComponent { 
-               sprite_sheet_name: sprite_sheet_name.clone(), 
+               sprite_sheet_name: "sara-atlas".to_string(), 
                sprite_location: (5,1) 
     })
     .build();

@@ -1,5 +1,5 @@
-mod ui_action;
-pub use ui_action::UIAction;
+mod state_event;
+pub use state_event::StateEvent;
 
 mod game_state;
 pub use game_state::GameState;

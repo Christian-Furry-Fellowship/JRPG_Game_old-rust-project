@@ -49,8 +49,8 @@ impl<'a> System<'a> for PlayerControlSystem {
 
             
             //update position
-            position.map_pos.x += displacement.0;
-            position.map_pos.y += displacement.1;
+            position.map_pos.0 += displacement.0;
+            position.map_pos.1 += displacement.1;
 
         }
     }

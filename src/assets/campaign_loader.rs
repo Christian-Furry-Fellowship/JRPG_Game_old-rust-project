@@ -1,12 +1,9 @@
 use std::path::{Path, PathBuf};
 use std::ffi::OsStr;
 
-//For image loading and hooking into the Task system
-use coffee::{
-    load::Task,
-    graphics::Image,
-};
-use coffee::graphics::Gpu;
+use tokio::runtime::Runtime;
+
+use macroquad::texture::load_texture;
 
 //For config file loading and parsing 
 use config::*;
@@ -17,7 +14,7 @@ use walkdir::WalkDir;
 
 
 use super::{AssetDatabase, AssetContainer, SpriteSheet};
-use super::audio::{ClipCategory, AudioClip};
+//use super::audio::{ClipCategory, AudioClip};
 
 
 //loads the metadata for each campaign so we can display the options
@@ -26,8 +23,11 @@ use super::audio::{ClipCategory, AudioClip};
 
 
 //loads all data for a given campaign
-pub fn load_campaign_data(path: &str, gpu: &mut Gpu, asset_db: &mut AssetDatabase) {
+pub fn load_campaign_data(path: &str, asset_db: &mut AssetDatabase) {
     
+    //lets us run async processes
+    let mut rt = Runtime::new().unwrap();
+
     //load all config files under the campain folder
     let mut campaign_config_paths = find_config_files(path);
     
@@ -35,7 +35,7 @@ pub fn load_campaign_data(path: &str, gpu: &mut Gpu, asset_db: &mut AssetDatabas
     while let Some(config_path) = campaign_config_paths.pop() {
         
         let config =
-        match load_config_task(&config_path).run(gpu) {
+        match load_config(&config_path) {
             Ok(config) => config,
             Err(e) => {
                 warn!("[Asset Loading] Could not load config file. Following error returned: {}", e);
@@ -45,8 +45,8 @@ pub fn load_campaign_data(path: &str, gpu: &mut Gpu, asset_db: &mut AssetDatabas
 
         //TODO make type case insensitive
         let asset_was_loaded = match config.get_str("type").unwrap_or("".to_string()).as_str() {
-            "sprite sheet" => load_sprite_sheet(&config, &config_path, gpu, asset_db),
-            "audio clip" => load_audio_clip(&config, &config_path, asset_db),
+            "sprite sheet" => rt.block_on(load_sprite_sheet(&config, &config_path, asset_db)),
+            //"audio clip" => load_audio_clip(&config, &config_path, asset_db),
             _ => {
                 warn!("[Asset Loading] 'Type' key does not exist or value is not supported. Config File Path: {}",
                        config_path.to_str().unwrap());
@@ -95,57 +95,43 @@ fn find_config_files(path: &str) -> Vec<PathBuf> {
 
 
 
-
-//utility function to create a coffee error since it's a bit of a pain.
-fn make_coffee_err_from_str(msg: &str) -> coffee::Error {
-    coffee::Error::IO(
-        std::io::Error::new( std::io::ErrorKind::Other, msg )
-    )
-}
-
 //creates a task for loading a config file and it's resources
-fn load_config_task(file_path: &PathBuf) -> Task<Config> {
-    //needed so closure below can capture
-    let path = file_path.clone();
-                     
+fn load_config(path: &PathBuf) -> Result<Config, String> {
+    
+    //coerce into string value or return error
+    let str_path = match path.to_str() {
+        Some(string) => string,
 
-    Task::new(move || {
-        //coerce into string value or return error
-        let str_path = match path.to_str() {
-            Some(string) => string,
+        //Will be logged in the function that runs this function.
+        None => return Err(format!("Could not convert path to str. Path: {:?}", path)),
+    };
 
-            //Will be logged in the function that runs the task.
-            None => return Err(
-                make_coffee_err_from_str("Config path cannot be converted to string.")
-            ),
-        };
+    //create the config struct and load in the given file either retuning populated
+    //   config file or a relevant error
+    let mut config_data = Config::default();
+    match config_data.merge(File::with_name(&str_path)) {
+        Ok(_) => Ok(config_data),
 
-        //create the config struct and load in the given file either retuning populated
-        //   config file or a relevant error
-        let mut config_data = Config::default();
-        match config_data.merge(File::with_name(&str_path)) {
-            Ok(_) => Ok(config_data),
+        //Coerce err to an error type we can return. 
+        //Will be logged in the function that runs this function.
+        Err(err) => Err( err.to_string() ),
+    }
 
-            //Coerce err to an error type we can return. 
-            //Will be logged in the function that runs the task.
-            Err(err) => Err( make_coffee_err_from_str( err.to_string().as_str() ) ),
-        }
-    })
 }
 
 
 //load sprite sheets
-//TODO, maybe should make this return a task also?
-fn load_sprite_sheet(config: &Config, config_path: &PathBuf, 
-                        gpu: &mut Gpu, asset_db: &mut AssetDatabase) -> bool {
+async fn load_sprite_sheet(config: &Config, config_path: &PathBuf, 
+                       asset_db: &mut AssetDatabase) -> bool {
 
     //pull data we need and validate
     let file = config.get_str("file");
+    let id = config.get_str("asset id");
     let rows = config.get_int("rows");
     let columns = config.get_int("columns");
     let animations = config.get_table("animations");
 
-    if file.is_err() || rows.is_err() || columns.is_err() {
+    if file.is_err() || id.is_err() || rows.is_err() || columns.is_err() {
         let err_msg_head = format!("{} {} {}. {}",
                                "[Asset Loading]",
                                "Could not find required config value for sprite sheet type in config file",
@@ -153,19 +139,45 @@ fn load_sprite_sheet(config: &Config, config_path: &PathBuf,
                                "Error follows: ");
 
         if let Err(err) = file { warn!("{} {}", err_msg_head, err); }
+        if let Err(err) = id { warn!("{} {}", err_msg_head, err); }
         if let Err(err) = rows { warn!("{} {}", err_msg_head, err); }
         if let Err(err) = columns { warn!("{} {}", err_msg_head, err); }
 
         return false //config missing required values
     }
 
+    //if the id already exists (i.e. equals anything other then DoesNotExist), error out
+    let asset_id = id.ok().expect("[spritesheet] ID failed to unwrap inexplicatly");
+    if let AssetContainer::DoesNotExist = asset_db.get_asset(&asset_id) {
+       //We are good, continue running the function normally
+    } else {
+        warn!("[Asset Loading] The ID {} is already used. Caused by loading {:?}", 
+              asset_id, config_path
+        );
+        return false;
+    }
 
     //process the file path and asset name to the right types
 
     // assume image path is given as relative to config path hence taking the parent as a starting point. 
     let image_path = match config_path.parent() {
            
-        Some(dir_path) => dir_path.join(file.ok().expect("File value is missing while loading.")),
+
+        Some(dir_path) => {
+            //TODO if the path string uses a delimiter (i.e. / or \) not supported by the 
+            //      current OS finding the file will fail
+            let relative_path = dir_path.join(
+                file.ok().expect("File value is missing while loading.")
+            );
+            
+            match relative_path.to_str() {
+                Some(name) => name.to_string(),
+                None => {
+                    warn!("[Asset Loading] Could not convert Path into str.");
+                    return false //name is not UTF-8 compatable so abort
+                }
+            }
+        },
 
         //getting parent from path failed somehow. Shouldn't ever happen naturally.
         None => {
@@ -178,18 +190,11 @@ fn load_sprite_sheet(config: &Config, config_path: &PathBuf,
     };
 
 
-    let asset_name = match image_path.clone().into_os_string().into_string() {
-        Ok(name) => name,
-        Err(err) => {
-            warn!("[Asset Loading] {}", 
-                  err.into_string().unwrap_or("<Could not convert OsString err into string>".to_string()));
-            return false //name is not UTF-8 compatable so abort
-        }
-    };
-
-
     //try to load image
-    let image = match Image::load( image_path.clone() ).run(gpu) {
+    let texture = load_texture(image_path.as_str()).await;
+
+    /* Would like to do error handling on the above but don't think it is avalible.
+    match  {
          Ok(image) => image,
          Err(err) => {
              warn!("[Asset Loading] Could not load Image at {} related to config file {}. Following error returned: {}", 
@@ -199,19 +204,19 @@ fn load_sprite_sheet(config: &Config, config_path: &PathBuf,
              );
              return false //load image failed.
          }
-    };
+    };*/
                         
 
     //create sprite sheet, add animations, then add the new asset to the database
     let mut spritesheet = SpriteSheet::new( 
-        image,
-        rows.ok().expect("row convert error") as u16, 
-        columns.ok().expect("column convert error") as u16, 
+        texture,
+        rows.ok().expect("row convert error") as i32, 
+        columns.ok().expect("column convert error") as i32, 
     );
         
     if animations.is_ok() {
         for (animation_name, tuple_list) in animations.ok().unwrap().iter() {
-            match tuple_list.clone().try_into::< Vec<(u16,u16)> >() {
+            match tuple_list.clone().try_into::< Vec<(i32,i32)> >() {
                 Ok(sprite_pos_array) => 
                     //TODO might want to do additional checking of data. 
                     //    No error is thrown for having an extra value regardless if it is an int or not.
@@ -232,12 +237,12 @@ fn load_sprite_sheet(config: &Config, config_path: &PathBuf,
         }
     }
 
-    asset_db.add_asset(asset_name, AssetContainer::Spritesheet(spritesheet));
+    asset_db.add_asset(asset_id, AssetContainer::Spritesheet(spritesheet));
     return true;
 }
 
 
-//load sound clips
+/*//load sound clips
 //TODO, maybe should make this return a task also?
 fn load_audio_clip(config: &Config, config_path: &PathBuf, asset_db: &mut AssetDatabase) -> bool {
 
@@ -301,5 +306,5 @@ fn load_audio_clip(config: &Config, config_path: &PathBuf, asset_db: &mut AssetD
 
     asset_db.add_asset(asset_name, AssetContainer::AudioClip(audio_clip));
     return true;
-}
+}*/
 

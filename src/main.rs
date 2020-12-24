@@ -1,83 +1,22 @@
 #[macro_use] extern crate log;
 extern crate simplelog;
 
+
+use macroquad::prelude::*;
+use megaui_macroquad::draw_megaui;
+
+
 mod assets;
 mod game_state;
 mod ecs;
 
 
-use coffee::{
-    graphics::{Frame, Window, WindowSettings},
-    load::{Task},
-    input::KeyboardAndMouse,
-    ui::{UserInterface, Renderer, Element},
-    Game, Timer
-};
-
-use game_state::{UIAction, GameState, MainMenuState};
-
-
-struct Application {
-    current_game_state: Box<dyn GameState>,
-}
-
-impl Game for Application {
-    type Input = KeyboardAndMouse;
-    type LoadingScreen = (); // No loading screen
-
-    fn load(_window: &Window) -> Task<Application> {
-        Task::succeed(|| {
-            Application { 
-                current_game_state: Box::new( MainMenuState::new() ),
-            }
-         })
-    }
-
-    //runs a generic update for data and handling of misc things.
-    fn update(&mut self, window: &Window) {
-        self.current_game_state.update(window);
-    }
-
-    //handles general input
-    fn interact(&mut self, kbm: &mut KeyboardAndMouse, window: &mut Window) {
-        self.current_game_state.interact(kbm, window);
-    }
-
-    //draws non ui elements to the screen
-    fn draw(&mut self, frame: &mut Frame, timer: &Timer) {
-        self.current_game_state.draw(frame, timer);
-    }
-
-    //check if we should shutdown the program
-    fn is_finished(&self) -> bool {
-        self.current_game_state.is_finished()
-    }
-}
-
-
-impl UserInterface for Application {
-    type Message = UIAction;
-    type Renderer = Renderer; // We use the built-in Renderer
-
-    // The update logic, called when a UI message is produced
-    fn react(&mut self, message: UIAction, window: &mut Window) {
-        //change our state if the current one requests it 
-        match self.current_game_state.react(message, window) {
-            Option::None => return,
-            Option::Some(new_state) => self.current_game_state = new_state,
-        }
-    }
-
-    // gets the UI layout and draws it to the screen ontop of whatever else has been drawn
-    fn layout(&mut self, window: &Window) -> Element<UIAction> {
-        self.current_game_state.layout(window)
-    }
-
-}
+use game_state::{GameState, MainMenuState, StateEvent};
 
 
 
-fn main() {
+#[macroquad::main("JRPG")]
+async fn main() {
     //setup logging system
     simplelog::CombinedLogger::init(
         vec![
@@ -89,14 +28,21 @@ fn main() {
         ]
     ).unwrap();
 
-    <Application as UserInterface>::run(WindowSettings {
-        title: String::from("A caffeinated game"),
-        size: (1280, 1024),
-        resizable: true,
-        fullscreen: false,
-        maximized: true,
-    })
-    .expect("An error occured while starting the game");
+    
+    let mut game_state: Box<dyn GameState> = Box::new(MainMenuState::new());
+    let mut running = true;
+    while running {
+        clear_background(LIGHTGRAY);
+        
+        //update game based on current state then handle the state event.
+        match game_state.update() {
+            StateEvent::Shutdown => running = false,
+            StateEvent::ChangeState(state) => game_state = state,
+            _ => (),
+        }
+
+        draw_megaui();
+
+        next_frame().await;
+    }
 }
-
-

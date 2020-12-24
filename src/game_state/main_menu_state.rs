@@ -1,24 +1,23 @@
 use super::game_state::GameState;
+use super::state_event::StateEvent;
 
-use coffee::{
-    graphics::{Frame, Window, Color},
-    ui::{button, Button, Column, Row, Element},
-    Timer
-}; 
-
-use super::UIAction;
+use macroquad::{
+    math::vec2,
+    window::{screen_width, screen_height}
+};
+use megaui_macroquad::{
+    draw_window,
+    megaui::{hash, Vector2},
+    WindowParams,
+};
 
 use super::playing_state::PlayingState;
 
 use crate::assets::audio::{AudioClip, ClipCategory, Playlist};
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 
 pub struct MainMenuState {
-    start_button: button::State,
-    load_button: button::State,
-    quit_button: button::State,
-
-    quit_requested: bool, 
+    event: StateEvent, 
     music_playlist: Playlist,
 }
 
@@ -36,11 +35,7 @@ impl MainMenuState {
         let playlist = Playlist::new(vec![clip1, clip2]);
 
         MainMenuState {
-            start_button: button::State::new(),
-            load_button: button::State::new(),
-            quit_button: button::State::new(),
-
-            quit_requested: false,
+            event: StateEvent::None,
             music_playlist: playlist,
         }
     }
@@ -49,65 +44,47 @@ impl MainMenuState {
 
 impl GameState for MainMenuState {
 
-    fn draw(&mut self, frame: &mut Frame, _timer: &Timer) {
-        // Clear the current frame
-        frame.clear(Color::BLACK);
-    }
+    fn ui_logic(&mut self) {
+        let main_menu_id = hash!();
 
-
-    fn react(&mut self, message: UIAction, window: &mut Window) -> Option< Box<dyn GameState> > {
-        match message {
-            UIAction::NewGame => {
-                //TODO temp until we get campaign selection working.
-                let path: PathBuf = ["campaigns", "TestGame"].iter().collect();
-                return Option::Some(
-                    Box::new(PlayingState::new( window.gpu(), path.to_str().unwrap() ))
-                )
+        //calculate center position
+        let menu_size = vec2(512., 420.);
+        let menu_pos = vec2(
+            (screen_width()  / 2.) - (menu_size.x / 2.), 
+            (screen_height() / 2.) - (menu_size.y / 2.)
+        );
+        
+        draw_window( main_menu_id, menu_pos, menu_size,
+            WindowParams {
+                label: "Main Menu".to_string(),
+                close_button: false,
+                titlebar: false,
+                movable: false,
             },
-            UIAction::LoadGame => warn!("Load game triggered"), //TODO Implement game loading
-            UIAction::QuitGame => self.quit_requested = true,
-        };
+            |ui| {
+                //keep main menu window centered
+                //TODO frankly very confused why this is needed. We provide a new pos each time so it should be needed.
+                ui.move_window(main_menu_id, Vector2::new(menu_pos.x, menu_pos.y));
+                
+                if ui.button(None, "Start New Game") {  
+                    let data_path = Path::new("campaigns").join("TestGame");
+                    let new_state = PlayingState::new(data_path.to_str().unwrap());
+                    self.event = StateEvent::ChangeState(Box::new(new_state));
+                }
+                ui.button(None, "Load");
+                if ui.button(None, "Quit") { self.event = StateEvent::Shutdown; }                
+            },
+        );
 
-        Option::None
-    }
-
-    // The layout logic, describing the different components of the user interface
-    fn layout(&mut self, window: &Window) -> Element<UIAction> {
-        Row::new()
-            .push(
-                //Adds in some horizontal spacing.
-                Column::new().width( (window.width()/8.0) as u32)
-            )
-            .push(
-                Column::new()
-                    .width( (window.width()/8.0) as u32)
-                    .push(
-                        //adds some virtical spacing
-                        Row::new().height( (window.width()/8.0) as u32 )
-                    )
-                    .push( Button::new(&mut self.start_button, "Start New Game")
-                            .fill_width()
-                            .on_press(UIAction::NewGame),
-                    )
-                    .push( Button::new(&mut self.load_button, "Load Game")
-                            .fill_width()
-                            .on_press(UIAction::LoadGame),
-                    )
-                    .push( Button::new(&mut self.quit_button, "Quit Game")
-                            .fill_width()
-                            .on_press(UIAction::QuitGame),
-                    )
-            )
-            .into()
-    }
-
-    
-    fn update(&mut self, _window: &Window) {
+        //keep menu music playing
         self.music_playlist.maintain_looping();
     }
-    
 
-    fn is_finished(&self) -> bool {
-        self.quit_requested
+
+    
+    fn state_logic(&mut self) -> StateEvent {
+        //Basically hot swaps the current event with a new none event then returns that event. 
+        //  Avoids copying the event incase it holds a new state that would be expensive to copy.
+        return std::mem::replace(&mut self.event, StateEvent::None);
     }
 }

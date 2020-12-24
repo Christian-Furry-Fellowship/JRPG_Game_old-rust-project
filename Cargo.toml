@@ -1,20 +1,21 @@
 [package]
-name = "coffee_test"
-version = "0.2.0"
+name = "macroquad_game"
+version = "0.1.0"
 authors = ["DomtronVox <Domtron.Vox@Gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[profile.dev]
-opt-level = 2
-
 [dependencies]
-coffee = { version = "0.4", features = ["opengl"] }
+tokio = {version = "0.3.6", features = ["rt", "rt-multi-thread"]}
+macroquad = "0.3.0-alpha.14"
+megaui-macroquad = "0.1.2"
+
 specs = { version = "0.16.1", features = ["specs-derive"] }
+
 rodio = "0.11.0"
+
 config = "0.10.1" 
 walkdir = "2"
 log = "0.4"
 simplelog = "^0.7.6"
-

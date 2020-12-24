@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 
-use coffee::graphics::{Point, Rectangle, Image, Batch, Sprite};
+use macroquad::texture::{Texture2D, DrawTextureParams, draw_texture_ex};
+use macroquad::math::Rect;
+use macroquad::prelude::Color;
 
 //size of a single sprite in the Sprite Sheet
-struct SpriteSize { pub width: u16, pub height: u16}
+struct SpriteSize { pub width: f32, pub height: f32}
 
 //location of a single sprite
-pub type SpritePos = ( u16, u16 );
+pub type SpritePos = ( i32, i32 );
 
 //Sprite locations ordered in a way to create an animation
 pub type SpriteAnimation = Vec<SpritePos>;
@@ -14,10 +16,9 @@ pub type SpriteAnimation = Vec<SpritePos>;
 
 //An array of sprites packed into a single image, also called an Atlas.
 pub struct SpriteSheet {
-    //atlas: Image,
-    pub batch: Batch,
-    pub rows: u16,
-    pub columns: u16,
+    pub texture: Texture2D,
+    pub rows: i32,
+    pub columns: i32,
     sprite_size: SpriteSize,
     animation_sets: HashMap<String, SpriteAnimation>,
 }
@@ -25,58 +26,47 @@ pub struct SpriteSheet {
 
 impl SpriteSheet {
 
-    pub fn new(image: Image, rows: u16, columns: u16) -> SpriteSheet {
+    pub fn new(texture: Texture2D, rows: i32, columns: i32) -> SpriteSheet {
         let sprite_size = SpriteSize {
-            width: image.width() / columns,
-            height: image.height() / rows,
+            width: texture.width()  / columns as f32,
+            height: texture.height() / rows as f32,
         };
 
         SpriteSheet {
-            //atlas: image.clone(),
-            batch: Batch::new(image),
-            rows,
-            columns,
+            texture,
+            rows, columns,
             sprite_size,
             animation_sets: HashMap::new(),
         }
     }
 
 
-    //Extract a specific sprite from the sprite sheet
-    // @position: provided position of the sprite on the target screen/frame/etc.
-    // @row: Which row of the atlas we are requesting. Note row starts at 1
-    // @column: Which column of the atlas we are requesting. Note column starts at 1
-    // returns: Image object of full atlas, used in drawing 
-    //          Sprite object depicting a single sprite in the atlas
-
-    pub fn get_sprite(&self, position: Point, mut row: u16, mut column: u16)
-           -> Sprite {
-
+    pub fn draw_sprite(&self, x: f32, y: f32, mut row: i32, mut column: i32,
+                       color: Option<Color>) {
+        
         //adjust row/column for calculating sprite position in atlas  
         row = row - 1;
         column = column - 1;
 
-        //TODO should we make sure requested row/column is within bounds 
+        //TODO: Should we make sure requested row/column is within bounds 
         //     or trust program not to make that mistake?
 
         //define these for brevity
-        let sprite_width = self.sprite_size.width;
-        let sprite_height = self.sprite_size.height;
+        let sprite_width = self.sprite_size.width as f32;
+        let sprite_height = self.sprite_size.height as f32;
 
-        //return full atlas image and requested sprite's location in the atlas.
-        Sprite { 
-            source: Rectangle{
-                x: column * sprite_width, y: row * sprite_height, 
-                width: sprite_width, height: sprite_height,
-            },
-            position: position, 
-            scale: (1.0,1.0) //assume normal scale, lets other code change it as needed 
-        }
-    }
+        //setup to only draw a single sprite
+        let mut params = DrawTextureParams::default();
+        params.source = Some(
+            Rect{ x: column as f32 * sprite_width, y: row as f32 * sprite_height,
+                  w: sprite_width, h: sprite_height}
+        );
 
-    //add a sprite quad to the batch for later drawing
-    pub fn add_to_batch(&mut self, position: Point, row: u16, column: u16) {
-        self.batch.add( self.get_sprite( position, row, column ) );
+        //draw portion of texture related to the sprite
+        draw_texture_ex(
+            self.texture, x, y, 
+            color.unwrap_or( Color::new(1.,1.,1.,1.) ), params
+        );
     }
 
     //adds a new sprite sequence using positions that represents an animation

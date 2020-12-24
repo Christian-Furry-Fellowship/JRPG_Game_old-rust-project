@@ -1,4 +1,5 @@
 type: sprite sheet
+asset id: sara-atlas
 file: sara-atlas.png
 rows: 5
 columns: 5
